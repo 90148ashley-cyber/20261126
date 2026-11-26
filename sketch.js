@@ -2,13 +2,27 @@
 let bgImg;
 let bgX = 0;
 
-// --- 角色 1 變數（請依你原本的角色 1 圖片與邏輯替換）---
+// --- 角色 1 精靈圖變數（stop: 10張 1395*196 / walk: 9張 1246*198）---
+let char1StopSheet, char1WalkSheet;
+let char1StopFrames = [];
+let char1WalkFrames = [];
+
+const CHAR1_STOP_COUNT = 10;
+const CHAR1_STOP_W = 1395;
+const CHAR1_STOP_H = 196;
+
+const CHAR1_WALK_COUNT = 9;
+const CHAR1_WALK_W = 1246;
+const CHAR1_WALK_H = 198;
+
 let char1X;
 let char1Y;
-let char1Facing = 1; // 1 向右, -1 向左
+let char1Facing = 1; // 1 朝右, -1 朝左
 let char1Speed = 5;
+let char1IsWalking = false;
+let char1FrameIndex = 0;
 
-// --- 角色 2 精靈圖變數（第一段設定：stop 10張 885*191 / action 12張 1627*171）---
+// --- 角色 2 精靈圖變數（stop: 10張 885*191 / action: 12張 1627*171）---
 let char2StopSheet, char2ActionSheet;
 let char2StopFrames = [];
 let char2ActionFrames = [];
@@ -42,30 +56,53 @@ function preload() {
   // 背景圖採用 bg/3.png
   bgImg = loadImage('bg/3.png');
 
+  // 角色 1 精靈圖
+  char1StopSheet = loadImage('1/stop/stop.png');
+  char1WalkSheet = loadImage('1/walk/walk.png');
+
   // 角色 2 精靈圖
   char2StopSheet = loadImage('2/stop/stop.png');
   char2ActionSheet = loadImage('2/action/action.png');
-
-  // TODO: 若角色 1 有自己的精靈圖，請在這裡載入
 }
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
   imageMode(CENTER);
 
-  // 切割 2/stop/stop.png（10 張，全寬 885，高 191）
-  let singleStopW = CHAR2_STOP_W / CHAR2_STOP_COUNT;
-  for (let i = 0; i < CHAR2_STOP_COUNT; i++) {
-    char2StopFrames.push(
-      char2StopSheet.get(i * singleStopW, 0, singleStopW, CHAR2_STOP_H)
+  // 切割角色 1 的 1/stop/stop.png（10 張，全寬 1395，高 196）
+  let singleChar1StopW = CHAR1_STOP_W / CHAR1_STOP_COUNT;
+  for (let i = 0; i < CHAR1_STOP_COUNT; i++) {
+    char1StopFrames.push(
+      char1StopSheet.get(i * singleChar1StopW, 0, singleChar1StopW, CHAR1_STOP_H)
     );
   }
 
-  // 切割 2/action/action.png（12 張，全寬 1627，高 171）
-  let singleActionW = CHAR2_ACTION_W / CHAR2_ACTION_COUNT;
+  // 切割角色 1 的 1/walk/walk.png（9 張，全寬 1246，高 198）
+  let singleChar1WalkW = CHAR1_WALK_W / CHAR1_WALK_COUNT;
+  for (let i = 0; i < CHAR1_WALK_COUNT; i++) {
+    char1WalkFrames.push(
+      char1WalkSheet.get(i * singleChar1WalkW, 0, singleChar1WalkW, CHAR1_WALK_H)
+    );
+  }
+
+  // 切割角色 2 的 2/stop/stop.png（10 張，全寬 885，高 191）
+  let singleChar2StopW = CHAR2_STOP_W / CHAR2_STOP_COUNT;
+  for (let i = 0; i < CHAR2_STOP_COUNT; i++) {
+    char2StopFrames.push(
+      char2StopSheet.get(i * singleChar2StopW, 0, singleChar2StopW, CHAR2_STOP_H)
+    );
+  }
+
+  // 切割角色 2 的 2/action/action.png（12 張，全寬 1627，高 171）
+  let singleChar2ActionW = CHAR2_ACTION_W / CHAR2_ACTION_COUNT;
   for (let i = 0; i < CHAR2_ACTION_COUNT; i++) {
     char2ActionFrames.push(
-      char2ActionSheet.get(i * singleActionW, 0, singleActionW, CHAR2_ACTION_H)
+      char2ActionSheet.get(
+        i * singleChar2ActionW,
+        0,
+        singleChar2ActionW,
+        CHAR2_ACTION_H
+      )
     );
   }
 
@@ -78,7 +115,7 @@ function setup() {
 function draw() {
   background(220);
 
-  // 1. 處理角色移動與背景捲動
+  // 1. 處理角色 1 移動與背景捲動
   handleMovement();
 
   // 2. 繪製左右各複製一張、共三張並排的 bg/3.png 背景
@@ -98,7 +135,7 @@ function draw() {
 
   drawCharacter2(char2X, char2Y, isNear);
 
-  // 4. 繪製角色 1
+  // 4. 繪製角色 1（依走路或停頓切換精靈圖）
   drawCharacter1();
 
   // 5. 處理接近觸發的黃色加法選擇題方框與 4 個選項按鈕
@@ -109,19 +146,42 @@ function draw() {
 }
 
 function handleMovement() {
+  char1IsWalking = false;
+
   if (keyIsDown(LEFT_ARROW)) {
+    char1IsWalking = true;
     char1Facing = -1;
     bgX += char1Speed;
     if (bgX > width) {
       bgX = width;
     }
   } else if (keyIsDown(RIGHT_ARROW)) {
+    char1IsWalking = true;
     char1Facing = 1;
     bgX -= char1Speed;
     if (bgX < -width) {
       bgX = -width;
     }
   }
+}
+
+function drawCharacter1() {
+  if (frameCount % 6 === 0) {
+    char1FrameIndex++;
+  }
+
+  let frameImg;
+  if (char1IsWalking) {
+    frameImg = char1WalkFrames[char1FrameIndex % CHAR1_WALK_COUNT];
+  } else {
+    frameImg = char1StopFrames[char1FrameIndex % CHAR1_STOP_COUNT];
+  }
+
+  push();
+  translate(char1X, char1Y);
+  scale(char1Facing, 1);
+  image(frameImg, 0, 0);
+  pop();
 }
 
 function drawCharacter2(x, y, isNear) {
@@ -147,24 +207,6 @@ function drawCharacter2(x, y, isNear) {
   }
 
   image(frameImg, 0, 0);
-  pop();
-}
-
-function drawCharacter1() {
-  push();
-  translate(char1X, char1Y);
-  scale(char1Facing, 1);
-
-  // TODO: 請將這裡替換成你原本的角色 1 精靈圖繪製程式碼
-  fill(70, 130, 220);
-  noStroke();
-  rectMode(CENTER);
-  rect(0, 0, 60, 110, 8);
-  fill(255);
-  textAlign(CENTER, CENTER);
-  textSize(14);
-  text('角色1', 0, 0);
-
   pop();
 }
 
